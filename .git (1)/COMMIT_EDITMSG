@@ -1,0 +1,26 @@
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# Committer: Robert De Brum <robertdebrum@Roberts-MacBook-Pro.local>
+#
+# On branch master
+# Your branch is up-to-date with 'origin/master'.
+#
+# Changes to be committed:
+#	modified:   siesta.c
+#
+# Changes not staged for commit:
+#	modified:   .gitignore
+#	modified:   Makefile
+#	modified:   tosh.c
+#
+# Untracked files:
+#	color_tosh.c
+#	colors.h
+#	parse_args.c
+#	parse_args.h
+#	siesta
+#	siesta.dSYM/
+#	tosh.dSYM/
+#

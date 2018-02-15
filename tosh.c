@@ -28,7 +28,7 @@ int main(){
 		// (1) read in the next command entered by the user
 		cyan();
 		char *cmdline = readline("tosh$ ");
-		magenta();
+		green();
 
 		// NULL indicates EOF was reached, which in this case means someone
 		// probably typed in CTRL-d
@@ -37,23 +37,27 @@ int main(){
 			exit(0);
 		}
 
-#ifdef DEBUG
+#ifdef DEBUG	
+		magenta();
 		fprintf(stdout, "DEBUG: %s\n", cmdline);
 #endif
 		// TODO: complete the following top-level steps
 		// (2) parse the cmdline
 		char *argv[MAXARGS];
 
-		parseArguments(cmdline, argv);
+		int bg = parseArguments(cmdline, argv);
 		int i = 0;
 #ifdef DEBUG
+		magenta();
+		printf("BACKGROUND = %d\n", bg);
 		while (argv[i] != NULL) {
 		    printf("%d: #%s#\n", i + 1, argv[i]);
 		    i++;
 		}
 #endif
+		
 		// (3) determine how to execute it, and then execute it
 	}
-
 	return 0;
 }
+
