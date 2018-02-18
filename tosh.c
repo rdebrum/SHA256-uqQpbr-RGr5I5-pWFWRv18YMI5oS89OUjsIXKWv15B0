@@ -86,34 +86,48 @@ void interp(char **argv, char *cmdline, int bg) {
 	addEntry(cmdline);
 	if (argv[1] == NULL) { chdir(getenv("HOME")); }
 	else { chdir(argv[1]); }
-    } else { Execv(argv, bg); }
+    } else { 
+	Execv(argv, bg);
+    }
 }
 
 void Execv(char **argv, int bg) {
     pid_t pid;
-    int i = 0;
 
     char *path = getenv("PATH");
-    char *temp = strtok(path, ":");
-    char *cpy = malloc(strlen(path));
-    int acc = 0;
+    char *attempt = strdup(path);
+    char build[strlen(path)];
+    char *temp = strtok(attempt, ":");
+
+#ifdef DEBUG
+    printf("env:\t%s\n", getenv("PATH"));
+//  exit(0);
+#endif
 
     while (temp != NULL) {
-	strcpy(cpy, temp);
-	strcat(cpy, "/");
-	strcat(cpy, argv[0]);
-	acc = access(cpy, X_OK);
+	strcpy(build, temp);
+	strcat(build, "/");
+	strcat(build, argv[0]);
 #ifdef DEBUG
-	printf("temp: %s:%d\n", cpy, acc);
+	printf("temp: %s : %d\n", build, access(build, X_OK));
 //	exit(0);
 #endif
-//	temp = NULL;
+	if (!access(build, X_OK)) { break; }
 	temp = strtok(NULL, ":");
     }
-
-    /* if ((pid = fork()) == 0) {
+    
+    if ((pid = fork()) == 0) {
 	pid = getpid();
-    */
+//	printf("CHILD\n");
+	execv(build, argv);
+	printf("ERROR: Command not found\n");
+	exit(0);
+    } else { 
+//	printf("PARENT\n");
+	waitpid(pid, NULL, bg);
+    }
+    path = NULL;
+    free(attempt);
 }
 
 void reapChild() {
