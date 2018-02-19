@@ -39,7 +39,7 @@ int main(){
 		// (1) read in the next command entered by the user
 		cyan();
 		char *cmdline = readline("tosh$ ");
-		green();
+		magenta();
 
 		// NULL indicates EOF was reached, which in this case means someone
 		// probably typed in CTRL-d
@@ -49,7 +49,6 @@ int main(){
 		}
 
 #ifdef DEBUG	
-		magenta();
 		fprintf(stdout, "DEBUG: %s\n", cmdline);
 #endif
 		// TODO: complete the following top-level steps
@@ -87,6 +86,7 @@ void interp(char **argv, char *cmdline, int bg) {
 	if (argv[1] == NULL) { chdir(getenv("HOME")); }
 	else { chdir(argv[1]); }
     } else { 
+	addEntry(cmdline);
 	Execv(argv, bg);
     }
 }
@@ -98,7 +98,7 @@ void Execv(char **argv, int bg) {
     char *attempt = strdup(path);
     char build[strlen(path)];
     char *temp = strtok(attempt, ":");
-
+    
 #ifdef DEBUG
     printf("env:\t%s\n", getenv("PATH"));
 //  exit(0);
@@ -114,6 +114,14 @@ void Execv(char **argv, int bg) {
 #endif
 	if (!access(build, X_OK)) { break; }
 	temp = strtok(NULL, ":");
+	if (temp == NULL) {
+	    getcwd(build, sizeof(build));
+	    strcat(build, "/");
+	    strcat(build, argv[0]);
+#ifdef DEBUG
+	    printf("build: %s\n", build);
+#endif
+	}
     }
     
     if ((pid = fork()) == 0) {
