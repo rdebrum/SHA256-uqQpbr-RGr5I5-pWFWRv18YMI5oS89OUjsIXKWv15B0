@@ -23,6 +23,8 @@ void interp(char **argv, char* cmdline, int bg);
 
 void Execv(char **argv, int bg);
 
+void historyCmd(char *argv[], char *cmdline, int bg);
+
 void reapChild();
 
 int main(){ 
@@ -46,8 +48,7 @@ int main(){
 		if (cmdline == NULL) {
 			fflush(stdout);
 			exit(0);
-		}
-
+		} else if (strlen(cmdline) <= 1) { continue; }
 #ifdef DEBUG	
 		fprintf(stdout, "DEBUG: %s\n", cmdline);
 #endif
@@ -79,9 +80,9 @@ void interp(char **argv, char *cmdline, int bg) {
     } else if (!strcmp(argv[0], "exit")) {
 	printf("Bye\n");
 	exit(0);
-/*    } else if (argv[0][0] == '!') { 
-	historyID(argv); 
-*/    } else if (!strcmp(argv[0], "cd")) {
+    } else if (argv[0][0] == '!') { 
+	historyCmd(argv, cmdline, bg); 
+    } else if (!strcmp(argv[0], "cd")) {
 	addEntry(cmdline);
 	if (argv[1] == NULL) { chdir(getenv("HOME")); }
 	else { chdir(argv[1]); }
@@ -136,6 +137,30 @@ void Execv(char **argv, int bg) {
     }
     path = NULL;
     free(attempt);
+}
+
+void historyCmd(char *argv[], char *cmdline, int bg) {
+    
+    char idchar[4];
+    unsigned idnum = 0;
+    
+    for (int i = 1; i < strlen(cmdline); i++) {
+	idchar[i - 1] = cmdline[i];
+    }
+
+    idnum = strtol(idchar, NULL, 10);
+    
+    cmdline = executeID(idnum);
+
+    if (cmdline == NULL) { printf("ERROR: invalid command ID\n"); }
+    else { 
+	bg = parseArguments(cmdline, argv);
+	interp(argv, cmdline, bg);
+    }
+#ifdef DEBUG
+//    exit(0);
+#endif
+    
 }
 
 void reapChild() {
