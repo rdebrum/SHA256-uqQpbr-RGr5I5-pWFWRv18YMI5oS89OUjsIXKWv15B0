@@ -16,12 +16,12 @@
 #include "colors.h"
 #include "tosh_q.h"
 
-#define DEBUG	1
+//#define DEBUG	1
 
 // TODO: add your function prototypes here as necessary
-void interp(char **argv, char* cmdline, int bg);
+void interp(char *argv[], char* cmdline, int bg);
 
-void Execv(char **argv, int bg);
+void Execv(char *argv[], int bg);
 
 void historyCmd(char *argv[], char *cmdline, int bg);
 
@@ -46,12 +46,11 @@ int main(){
 		// NULL indicates EOF was reached, which in this case means someone
 		// probably typed in CTRL-d
 		if (cmdline == NULL) {
-			fflush(stdout);
-			exit(0);
+		    red();
+		    fflush(stdout);
+		    exit(0);
 		} else if (strlen(cmdline) <= 1) { continue; }
-#ifdef DEBUG	
-		fprintf(stdout, "DEBUG: %s\n", cmdline);
-#endif
+		
 		// TODO: complete the following top-level steps
 		// (2) parse the cmdline
 		char *argv[MAXARGS];
@@ -59,12 +58,12 @@ int main(){
 		int bg = parseArguments(cmdline, argv);
 		int i = 0;
 #ifdef DEBUG
-		magenta();
 		printf("BACKGROUND = %d\n", bg);
 		while (argv[i] != NULL) {
 		    printf("%d: #%s#\n", i + 1, argv[i]);
 		    i++;
 		}
+		magenta();
 #endif		
 		if (bg) { bg = WNOHANG; }
 		interp(argv, cmdline, bg);
@@ -72,8 +71,17 @@ int main(){
 	}
 	return 0;
 }
-
-void interp(char **argv, char *cmdline, int bg) {
+/**
+ *
+ * Interp
+ *
+ * Interpret the command line to be be executed.
+ *
+ * @param argv: list of command line parameters
+ * @param cmdline: the original command entry
+ * @param bg: 0 for foreground, 1 for background execution
+ **/
+void interp(char *argv[], char *cmdline, int bg) {
     if (!strcmp(argv[0], "history")) {
 	addEntry(cmdline);
 	printHistory();
@@ -81,7 +89,7 @@ void interp(char **argv, char *cmdline, int bg) {
 	printf("Bye\n");
 	exit(0);
     } else if (argv[0][0] == '!') { 
-	historyCmd(argv, cmdline, bg); 
+	 historyCmd(argv, cmdline, bg); 
     } else if (!strcmp(argv[0], "cd")) {
 	addEntry(cmdline);
 	if (argv[1] == NULL) { chdir(getenv("HOME")); }
@@ -92,7 +100,7 @@ void interp(char **argv, char *cmdline, int bg) {
     }
 }
 
-void Execv(char **argv, int bg) {
+void Execv(char *argv[], int bg) {
     pid_t pid;
 
     char *path = getenv("PATH");
@@ -102,7 +110,6 @@ void Execv(char **argv, int bg) {
     
 #ifdef DEBUG
     printf("env:\t%s\n", getenv("PATH"));
-//  exit(0);
 #endif
 
     while (temp != NULL) {
@@ -111,7 +118,6 @@ void Execv(char **argv, int bg) {
 	strcat(build, argv[0]);
 #ifdef DEBUG
 	printf("temp: %s : %d\n", build, access(build, X_OK));
-//	exit(0);
 #endif
 	if (!access(build, X_OK)) { break; }
 	temp = strtok(NULL, ":");
@@ -127,12 +133,11 @@ void Execv(char **argv, int bg) {
     
     if ((pid = fork()) == 0) {
 	pid = getpid();
-//	printf("CHILD\n");
 	execv(build, argv);
+	red();
 	printf("ERROR: Command not found\n");
 	exit(0);
     } else { 
-//	printf("PARENT\n");
 	waitpid(pid, NULL, bg);
     }
     path = NULL;
@@ -140,27 +145,34 @@ void Execv(char **argv, int bg) {
 }
 
 void historyCmd(char *argv[], char *cmdline, int bg) {
-    
-    char idchar[4];
-    unsigned idnum = 0;
-    
-    for (int i = 1; i < strlen(cmdline); i++) {
-	idchar[i - 1] = cmdline[i];
+    if (argv[0][1] == '!') {
+
+#ifdef DEBUG
+	printf("success\n");
+#endif
+
+	cmdline = repeatLast();
+    } else {
+	char idchar[4];
+        unsigned idnum = 0;
+ 
+        for (int i = 1; i < strlen(cmdline); i++) {
+	    idchar[i - 1] = cmdline[i];
+        }
+
+	idnum = strtol(idchar, NULL, 10);
+#ifdef DEBUG
+	printf("CMD NUM TO EXECV: %d\n", idnum);
+#endif
+        cmdline = executeID(idnum);
     }
-
-    idnum = strtol(idchar, NULL, 10);
-    
-    cmdline = executeID(idnum);
-
-    if (cmdline == NULL) { printf("ERROR: invalid command ID\n"); }
-    else { 
+    if (cmdline == NULL) {
+	red();
+	printf("ERROR: invalid command ID\n");
+    } else { 
 	bg = parseArguments(cmdline, argv);
 	interp(argv, cmdline, bg);
     }
-#ifdef DEBUG
-//    exit(0);
-#endif
-    
 }
 
 void reapChild() {

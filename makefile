@@ -8,3 +8,7 @@ TARGETS = tosh
 
 tosh: tosh.c 
 	$(CC) $(CFLAGS) $(COLORS) $(PARSE) $(HIST) -o $@ $^
+
+hist: tosh_q.c
+	$(CC) $(CFLAGS) $(COLORS) $(PARSE) $(HIST) -o $@ $^
+	

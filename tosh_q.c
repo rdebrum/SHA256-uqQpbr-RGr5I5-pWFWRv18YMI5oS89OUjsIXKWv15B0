@@ -1,7 +1,11 @@
 /*
  * The Torero Shell (TOSH)
  *
- * Add your top-level comments here.
+ * Authors: 
+ *	Robert de Brum
+ *	Nathan Kramer
+ * 
+ * Source code for the history queue functions
  */
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +49,8 @@ void addEntry(char *cmd) {
 	// Set the new queue information.
 	history[next].cmd_num = entry;
 	strcpy(history[next].cmdline, cmd);
+	printf("Size: %d\nCurr: %d\nStart: %d\n", size, entry, start);
+	printHistory();
 }
 
 /**
@@ -59,10 +65,12 @@ void addEntry(char *cmd) {
 void printHistory() {
 	// For each element in the queue (starting at start);
 	int current = start;
-	for (int i = 0; i < (int)size; ++i) {
+	for (int i = 0; i < size; ++i) {
 		// If the current element reaches the end of the queue start from 0.
+//		printf("current: %d\n", current);
 		if (current == MAXHIST) current = 0;
-		printf("%d:\t%s\n", history[current].cmd_num, history[current].cmdline);
+		printf("%d:\t%s\n", history[current].cmd_num,
+			history[current].cmdline);
 		++current;
 	}
 }
@@ -77,16 +85,28 @@ void printHistory() {
  * @return the command line associated with the given id.
  **/
 char *executeID(unsigned int id) {
-	int i = 0;
+	int i = start;
 	// If the id is within range of the queue, return the command at num. 
-	if (id > 0 && id < entry && id > (entry - size)) {
-		while (id != history[i].cmd_num) { ++i; }
+	if (id <= entry && id > start) {
+		printf("PASS\n");
+		while (id != history[i].cmd_num) {
+		    printf("i[%d]:id[%d]:h[%d]\n", i, id, history[i].cmd_num);
+		    ++i;
+		}
+		printf("history[%d].cmdline = %s\n", history[i].cmd_num,
+			history[i].cmdline);
 		return history[i].cmdline;
-	}
-	else { return NULL;	}
+	} else { return NULL; }
 }
 
 
+char *repeatLast() {
+    if (size == 0) { return NULL; }
+    else { 
+	printf("last command: %s\n", history[size - 1].cmdline);
+	return history[size - 1].cmdline;
+    }
+}
 
 
 

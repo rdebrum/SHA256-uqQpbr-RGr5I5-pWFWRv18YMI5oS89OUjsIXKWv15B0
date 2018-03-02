@@ -26,4 +26,6 @@ void printHistory();
 
 char *executeID(unsigned int id);
 
+char *repeatLast();
+
 #endif
