@@ -100,6 +100,15 @@ void interp(char *argv[], char *cmdline, int bg) {
     }
 }
 
+/**
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+**/
 void Execv(char *argv[], int bg) {
     pid_t pid;
 
@@ -144,6 +153,15 @@ void Execv(char *argv[], int bg) {
     free(attempt);
 }
 
+/**
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+**/
 void historyCmd(char *argv[], char *cmdline, int bg) {
     if (argv[0][1] == '!') {
 
@@ -151,7 +169,8 @@ void historyCmd(char *argv[], char *cmdline, int bg) {
 	printf("success\n");
 #endif
 
-	cmdline = repeatLast();
+        strcpy(cmdline, repeatLast());
+    
     } else {
 	char idchar[4];
         unsigned idnum = 0;
@@ -164,17 +183,28 @@ void historyCmd(char *argv[], char *cmdline, int bg) {
 #ifdef DEBUG
 	printf("CMD NUM TO EXECV: %d\n", idnum);
 #endif
-        cmdline = executeID(idnum);
+        strcpy(cmdline, executeID(idnum));
     }
     if (cmdline == NULL) {
 	red();
 	printf("ERROR: invalid command ID\n");
     } else { 
+#ifdef DEBUG
+	printf("HERE\n");
+	printf("%s\n", cmdline);
+#endif	
 	bg = parseArguments(cmdline, argv);
 	interp(argv, cmdline, bg);
     }
 }
 
+/**
+ *
+ * reapChild
+ *
+ * Reap any zombie children.
+ *
+**/
 void reapChild() {
     while (waitpid(-1, NULL, WNOHANG) > 0) {}
 }

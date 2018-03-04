@@ -85,18 +85,19 @@ void printHistory() {
  * @return the command line associated with the given id.
  **/
 char *executeID(unsigned int id) {
-	int i = start;
-	// If the id is within range of the queue, return the command at num. 
-	if (id <= entry && id > start) {
-		printf("PASS\n");
-		while (id != history[i].cmd_num) {
-		    printf("i[%d]:id[%d]:h[%d]\n", i, id, history[i].cmd_num);
-		    ++i;
-		}
-		printf("history[%d].cmdline = %s\n", history[i].cmd_num,
-			history[i].cmdline);
-		return history[i].cmdline;
-	} else { return NULL; }
+    // If the id is within range of the queue, return the command at num. 
+    if (id <= entry && id > start) {
+    	printf("PASS\n");
+        for (int i = 0; i < MAXHIST; ++i) {
+	    printf("%d\n", history[i].cmd_num);
+	    if (id == history[i].cmd_num) {
+//	        printf("history[%d].cmdline = %s\n", history[i].cmd_num,
+//		   history[i].cmdline);
+	        return history[i].cmdline;
+	    }
+	}
+    }
+    return NULL;
 }
 
 
@@ -107,8 +108,3 @@ char *repeatLast() {
 	return history[size - 1].cmdline;
     }
 }
-
-
-
-
-
