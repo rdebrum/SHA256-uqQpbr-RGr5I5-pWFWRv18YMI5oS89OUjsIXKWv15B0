@@ -16,7 +16,7 @@
 #include "colors.h"
 #include "tosh_q.h"
 
-//#define DEBUG	1
+#define DEBUG	1
 
 // TODO: add your function prototypes here as necessary
 void interp(char *argv[], char* cmdline, int bg);
@@ -24,6 +24,8 @@ void interp(char *argv[], char* cmdline, int bg);
 void Execv(char *argv[], int bg);
 
 void historyCmd(char *argv[], char *cmdline, int bg);
+
+void getOut(char *fd);
 
 void reapChild();
 
@@ -140,6 +142,10 @@ void Execv(char *argv[], int bg) {
 	}
     }
     
+    if (argv[1] != NULL) {
+	getOut(argv[1]);
+    }
+
     if ((pid = fork()) == 0) {
 	pid = getpid();
 	execv(build, argv);
@@ -155,12 +161,11 @@ void Execv(char *argv[], int bg) {
 
 /**
  *
+ * historyCmd
  *
- *
- *
- *
- *
- *
+ * @param argv: a list of command line arguments
+ * @param cmdline: a string pointer with the command
+ * @param bg: specifies if the command is to be executed in the foreground or background
 **/
 void historyCmd(char *argv[], char *cmdline, int bg) {
     if (argv[0][1] == '!') {
@@ -200,10 +205,23 @@ void historyCmd(char *argv[], char *cmdline, int bg) {
 
 /**
  *
+ *
+ *
+ *
+ **/
+void getOut(char *fd) {
+#ifdef DEBUG
+    for (int i = 0; i < strlen(fd); ++i) {
+	printf("%c\n", fd[i]);
+    }
+#endif
+}
+
+/**
+ *
  * reapChild
  *
  * Reap any zombie children.
- *
 **/
 void reapChild() {
     while (waitpid(-1, NULL, WNOHANG) > 0) {}
