@@ -178,6 +178,7 @@ char *buildPath(char *argv[], char *build, int bg) {
 **/
 void Execv(char *path, char *argv[], int bg) {
     pid_t pid;
+    int saved_stdout;t 
 
 #ifdef DEBUG
     printf("PATH: %s\n", path);
@@ -186,6 +187,7 @@ void Execv(char *path, char *argv[], int bg) {
     if (classify(argv) == 1) { printf("PIPE\n"); }
     else if (classify(argv) == 2) {
 	printf("IOREDIR\n");
+	saved_stdout = dup(1);
 	ioredir(argv);
     }
 
@@ -199,6 +201,10 @@ void Execv(char *path, char *argv[], int bg) {
 	exit(0);
     } else { 
 	waitpid(pid, NULL, bg);
+	
+	dup2(saved_stdout, 1);
+	close(saved_stdout);
+
     }
 }
 
@@ -293,12 +299,12 @@ void ioredir(char *argv[]) {
 		magenta();
         }
 	
-	outfile = open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR); 
-	dup2(outfile, fd);
-	close(outfile);
+	outfile = open(argv[2], O_WRONLY | O_CREAT); 
 #ifdef DEBUG
 	printf("ERRNO: %d\n", errno);
 #endif
+	dup2(outfile, fd);
+	close(outfile);
     } else {
 	infile = open(argv[2], O_RDONLY);
 	dup2(infile, 0);
