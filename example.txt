@@ -1,6 +1,15 @@
-blah blah blahblah
-
-aldfha
-lasfha;skfjh
-
-penis
+ls
+ps
+whoami
+cd ~
+pwd
+cd Desktop/OS/project1/starter
+pwd
+history
+!3
+!5
+blah
+./shithole
+!3
+!!
+!!

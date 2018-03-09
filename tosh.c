@@ -12,6 +12,8 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <readline/readline.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "parse_args.h"
 #include "colors.h"
 #include "tosh_q.h"
@@ -21,11 +23,15 @@
 // TODO: add your function prototypes here as necessary
 void interp(char *argv[], char* cmdline, int bg);
 
-void Execv(char *argv[], int bg);
+char *buildPath(char *argv[], char *build, int bg);
+
+void Execv(char *path, char *argv[], int bg);
 
 void historyCmd(char *argv[], char *cmdline, int bg);
 
-void getOut(char *fd);
+int classify(char *argv[]);
+
+void ioredir(char *argv[]);
 
 void reapChild();
 
@@ -49,6 +55,7 @@ int main(){
 		// probably typed in CTRL-d
 		if (cmdline == NULL) {
 		    red();
+		    printf("EOF REACHED\n");
 		    fflush(stdout);
 		    exit(0);
 		} else if (strlen(cmdline) <= 1) { continue; }
@@ -73,6 +80,7 @@ int main(){
 	}
 	return 0;
 }
+
 /**
  *
  * Interp
@@ -84,6 +92,8 @@ int main(){
  * @param bg: 0 for foreground, 1 for background execution
  **/
 void interp(char *argv[], char *cmdline, int bg) {
+    char *build = NULL;
+    
     if (!strcmp(argv[0], "history")) {
 	addEntry(cmdline);
 	printHistory();
@@ -98,8 +108,14 @@ void interp(char *argv[], char *cmdline, int bg) {
 	else { chdir(argv[1]); }
     } else { 
 	addEntry(cmdline);
-	Execv(argv, bg);
+	build = buildPath(argv, build, bg);
+	Execv(build, argv, bg);
+#ifdef DEBUG
+	printf("### %s to be executed\n", build);
+#endif
+	
     }
+    free(build);
 }
 
 /**
@@ -111,13 +127,13 @@ void interp(char *argv[], char *cmdline, int bg) {
  *
  *
 **/
-void Execv(char *argv[], int bg) {
-    pid_t pid;
+char *buildPath(char *argv[], char *build, int bg) {
 
     char *path = getenv("PATH");
     char *attempt = strdup(path);
-    char build[strlen(path)];
     char *temp = strtok(attempt, ":");
+    
+    build = strdup(path);
     
 #ifdef DEBUG
     printf("env:\t%s\n", getenv("PATH"));
@@ -127,36 +143,63 @@ void Execv(char *argv[], int bg) {
 	strcpy(build, temp);
 	strcat(build, "/");
 	strcat(build, argv[0]);
+	if (!access(build, X_OK)) { break; }
+	
+	temp = strtok(NULL, ":");
+
 #ifdef DEBUG
 	printf("temp: %s : %d\n", build, access(build, X_OK));
 #endif
-	if (!access(build, X_OK)) { break; }
-	temp = strtok(NULL, ":");
+	
 	if (temp == NULL) {
-	    getcwd(build, sizeof(build));
+	    build = NULL;
+	    build = getcwd(build, sizeof(build));
+#ifdef DEBUG
+	    printf("CWD = %s\n", build); 
+#endif
 	    strcat(build, "/");
 	    strcat(build, argv[0]);
-#ifdef DEBUG
-	    printf("build: %s\n", build);
-#endif
 	}
     }
-    
-    if (argv[1] != NULL) {
-	getOut(argv[1]);
+#ifdef DEBUG
+    printf("build: %s\n", build);
+#endif
+    free(attempt);
+    return build;
+}
+
+/**
+ *
+ *
+ *
+ *
+ *
+ *
+**/
+void Execv(char *path, char *argv[], int bg) {
+    pid_t pid;
+
+#ifdef DEBUG
+    printf("PATH: %s\n", path);
+#endif
+
+    if (classify(argv) == 1) { printf("PIPE\n"); }
+    else if (classify(argv) == 2) {
+	printf("IOREDIR\n");
+	ioredir(argv);
     }
 
     if ((pid = fork()) == 0) {
 	pid = getpid();
-	execv(build, argv);
+
+	execv(path, argv);
+
 	red();
 	printf("ERROR: Command not found\n");
 	exit(0);
     } else { 
 	waitpid(pid, NULL, bg);
     }
-    path = NULL;
-    free(attempt);
 }
 
 /**
@@ -209,12 +252,59 @@ void historyCmd(char *argv[], char *cmdline, int bg) {
  *
  *
  **/
-void getOut(char *fd) {
+int classify(char *argv[]) {
+    if (argv[1] == NULL) { return 0; }
+    for (int i = 0; i < strlen(argv[1]); ++i) {	
+	if (argv[1][i] == '|') {
+	    return 1;
+	} else if (argv[1][i] == '>' || argv[1][i] == '<') {
+	    return 2;
+	} 
+
 #ifdef DEBUG
-    for (int i = 0; i < strlen(fd); ++i) {
-	printf("%c\n", fd[i]);
-    }
+	printf("%c\n", argv[1][i]);
 #endif
+    }
+}
+/**
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+**/
+// TODO: CALL EXECV IN HERE?
+void ioredir(char *argv[]) {
+    int fd = 1;
+    int outfile = 0;
+    int infile = 0;
+
+    if (strlen(argv[1]) == 2) {
+	fd = argv[1][0] - 48;
+#ifdef DEBUG
+	printf("fd: %d\n", fd);
+	printf("OUTPUT FILE: %s\n", argv[2]);
+#endif
+	if (fd < 1 && fd > 2) {
+		red();
+		printf("ERROR: bad file descriptor\n");
+		magenta();
+        }
+	
+	outfile = open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR); 
+	dup2(outfile, fd);
+	close(outfile);
+#ifdef DEBUG
+	printf("ERRNO: %d\n", errno);
+#endif
+    } else {
+	infile = open(argv[2], O_RDONLY);
+	dup2(infile, 0);
+	close(infile);
+    } 
+   
 }
 
 /**

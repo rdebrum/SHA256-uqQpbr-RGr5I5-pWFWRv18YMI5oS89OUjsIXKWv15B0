@@ -50,7 +50,6 @@ void addEntry(char *cmd) {
 	history[next].cmd_num = entry;
 	strcpy(history[next].cmdline, cmd);
 	printf("Size: %d\nCurr: %d\nStart: %d\n", size, entry, start);
-	printHistory();
 }
 
 /**
