@@ -49,7 +49,7 @@ void addEntry(char *cmd) {
 	// Set the new queue information.
 	history[next].cmd_num = entry;
 	strcpy(history[next].cmdline, cmd);
-	printf("Size: %d\nCurr: %d\nStart: %d\n", size, entry, start);
+//	printf("Size: %d\nCurr: %d\nStart: %d\n", size, entry, start);
 }
 
 /**
@@ -86,9 +86,9 @@ void printHistory() {
 char *executeID(unsigned int id) {
     // If the id is within range of the queue, return the command at num. 
     if (id <= entry && id > start) {
-    	printf("PASS\n");
+//  	printf("PASS\n");
         for (int i = 0; i < MAXHIST; ++i) {
-	    printf("%d\n", history[i].cmd_num);
+//	    printf("%d\n", history[i].cmd_num);
 	    if (id == history[i].cmd_num) {
 //	        printf("history[%d].cmdline = %s\n", history[i].cmd_num,
 //		   history[i].cmdline);
@@ -103,7 +103,7 @@ char *executeID(unsigned int id) {
 char *repeatLast() {
     if (size == 0) { return NULL; }
     else { 
-	printf("last command: %s\n", history[size - 1].cmdline);
+//	printf("last command: %s\n", history[size - 1].cmdline);
 	return history[size - 1].cmdline;
     }
 }

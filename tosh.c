@@ -29,11 +29,13 @@ void Execv(char *path, char *argv[], int bg);
 
 void historyCmd(char *argv[], char *cmdline, int bg);
 
-int classify(char *argv[]);
+char classify(char *argv[]);
 
-void ioredir(char *argv[]);
+void ioredir(char *argv[], char dir);
 
 void reapChild();
+
+void Error(char *err);
 
 int main(){ 
 
@@ -55,7 +57,7 @@ int main(){
 		// probably typed in CTRL-d
 		if (cmdline == NULL) {
 		    red();
-		    printf("EOF REACHED\n");
+		    Error("EOF REACHED");
 		    fflush(stdout);
 		    exit(0);
 		} else if (strlen(cmdline) <= 1) { continue; }
@@ -79,6 +81,18 @@ int main(){
 		// (3) determine how to execute it, and then execute it
 	}
 	return 0;
+}
+
+void Error(char *err) {
+    if (err != NULL) {
+        red();
+	printf("%s\n", err);
+        magenta();
+    } else {
+	red();
+	printf("ERRNO %d: %s\n", errno, strerror(errno));
+	magenta();
+    }
 }
 
 /**
@@ -110,9 +124,6 @@ void interp(char *argv[], char *cmdline, int bg) {
 	addEntry(cmdline);
 	build = buildPath(argv, build, bg);
 	Execv(build, argv, bg);
-#ifdef DEBUG
-	printf("### %s to be executed\n", build);
-#endif
 	
     }
     free(build);
@@ -178,17 +189,20 @@ char *buildPath(char *argv[], char *build, int bg) {
 **/
 void Execv(char *path, char *argv[], int bg) {
     pid_t pid;
-    int saved_stdout;t 
+    char type;
+    int saved_stdout = dup(1); 
 
 #ifdef DEBUG
     printf("PATH: %s\n", path);
 #endif
 
-    if (classify(argv) == 1) { printf("PIPE\n"); }
-    else if (classify(argv) == 2) {
+    type = classify(argv);
+    if (type == '|') { printf("PIPE\n"); }
+    else if (type == '<' || type == '>') {
+#ifdef DEBUG
 	printf("IOREDIR\n");
-	saved_stdout = dup(1);
-	ioredir(argv);
+#endif
+	ioredir(argv, type);
     }
 
     if ((pid = fork()) == 0) {
@@ -196,8 +210,7 @@ void Execv(char *path, char *argv[], int bg) {
 
 	execv(path, argv);
 
-	red();
-	printf("ERROR: Command not found\n");
+	Error("ERROR: Command not found");
 	exit(0);
     } else { 
 	waitpid(pid, NULL, bg);
@@ -240,8 +253,7 @@ void historyCmd(char *argv[], char *cmdline, int bg) {
         strcpy(cmdline, executeID(idnum));
     }
     if (cmdline == NULL) {
-	red();
-	printf("ERROR: invalid command ID\n");
+	Error("ERROR: invalid command ID");
     } else { 
 #ifdef DEBUG
 	printf("HERE\n");
@@ -258,20 +270,20 @@ void historyCmd(char *argv[], char *cmdline, int bg) {
  *
  *
  **/
-int classify(char *argv[]) {
-    if (argv[1] == NULL) { return 0; }
+char classify(char *argv[]) {
+    if (argv[1] == NULL) { return '\0'; }
     for (int i = 0; i < strlen(argv[1]); ++i) {	
 	if (argv[1][i] == '|') {
-	    return 1;
-	} else if (argv[1][i] == '>' || argv[1][i] == '<') {
-	    return 2;
-	} 
-
-#ifdef DEBUG
-	printf("%c\n", argv[1][i]);
-#endif
+	    return '|';
+	} else if (argv[1][i] == '>') { 
+	    return '>';
+	} else if (argv[1][i] == '<') {
+	    return '<';
+	}
     }
+    return '\0';
 }
+
 /**
  *
  *
@@ -281,36 +293,68 @@ int classify(char *argv[]) {
  *
  *
 **/
-// TODO: CALL EXECV IN HERE?
-void ioredir(char *argv[]) {
+void ioredir(char *argv[], char dir) {
     int fd = 1;
     int outfile = 0;
     int infile = 0;
 
-    if (strlen(argv[1]) == 2) {
+    if (dir == '>') {
 	fd = argv[1][0] - 48;
+	if (fd < 1 && fd > 2) {
+		Error("ERROR: bad file descriptor");
+		return;
+	}
+
 #ifdef DEBUG
+	printf("OUTPUTTING\n");
 	printf("fd: %d\n", fd);
 	printf("OUTPUT FILE: %s\n", argv[2]);
 #endif
-	if (fd < 1 && fd > 2) {
-		red();
-		printf("ERROR: bad file descriptor\n");
-		magenta();
-        }
-	
-	outfile = open(argv[2], O_WRONLY | O_CREAT); 
+
+	outfile = open(argv[2], O_WRONLY | O_CREAT | O_CLOEXEC); 
 #ifdef DEBUG
-	printf("ERRNO: %d\n", errno);
+	Error(NULL); 
 #endif
 	dup2(outfile, fd);
 	close(outfile);
+    
     } else {
+
+#ifdef DEBUG
+	printf("INPUTTING\n");
+	printf("fd: %d\n", fd);
+	printf("INPUT FILE: %s\n", argv[2]);
+#endif
 	infile = open(argv[2], O_RDONLY);
 	dup2(infile, 0);
 	close(infile);
-    } 
-   
+    
+	if (argv[3] != NULL) {
+	    if (strlen(argv[3]) == 2) {
+		fd = argv[3][0];
+		if (fd < 1 && fd > 2) {
+		    Error("ERROR: bad file descriptor");
+		    return;
+		}
+	    }
+	    if (argv[4] == NULL) { 
+		Error("ERROR: No output file");
+		return;
+	    }
+#ifdef DEBUG
+	    printf("OUTPUTTING\n");
+	    printf("fd: %d\n", fd);
+	    printf("OUTPUT FILE: %s\n", argv[4]);
+#endif
+	    outfile = open(argv[4], O_WRONLY | O_CREAT); 
+#ifdef DEBUG
+	    Error(NULL);
+#endif
+	    dup2(outfile, fd);
+	    close(outfile);
+	}
+		
+    }    
 }
 
 /**
