@@ -331,7 +331,7 @@ void ioredir(char *argv[], char dir) {
     
 	if (argv[3] != NULL) {
 	    if (strlen(argv[3]) == 2) {
-		fd = argv[3][0];
+		fd = argv[3][0] - 48;
 		if (fd < 1 && fd > 2) {
 		    Error("ERROR: bad file descriptor");
 		    return;
@@ -346,7 +346,7 @@ void ioredir(char *argv[], char dir) {
 	    printf("fd: %d\n", fd);
 	    printf("OUTPUT FILE: %s\n", argv[4]);
 #endif
-	    outfile = open(argv[4], O_WRONLY | O_CREAT); 
+	    outfile = open(argv[4], O_WRONLY | O_CREAT | O_CLOEXEC); 
 #ifdef DEBUG
 	    Error(NULL);
 #endif
