@@ -33,6 +33,8 @@ char classify(char *argv[]);
 
 void ioredir(char *argv[], char dir);
 
+void IOredir(char *argv[], char dir);
+
 void reapChild();
 
 void Error(char *err);
@@ -51,8 +53,7 @@ int main(){
 		// (1) read in the next command entered by the user
 		cyan();
 		char *cmdline = readline("tosh$ ");
-		magenta();
-
+		
 		// NULL indicates EOF was reached, which in this case means someone
 		// probably typed in CTRL-d
 		if (cmdline == NULL) {
@@ -74,7 +75,6 @@ int main(){
 		    printf("%d: #%s#\n", i + 1, argv[i]);
 		    i++;
 		}
-		magenta();
 #endif		
 		if (bg) { bg = WNOHANG; }
 		interp(argv, cmdline, bg);
@@ -107,7 +107,7 @@ void Error(char *err) {
  **/
 void interp(char *argv[], char *cmdline, int bg) {
     char *build = NULL;
-    
+    magenta();
     if (!strcmp(argv[0], "history")) {
 	addEntry(cmdline);
 	printHistory();
@@ -202,7 +202,7 @@ void Execv(char *path, char *argv[], int bg) {
 #ifdef DEBUG
 	printf("IOREDIR\n");
 #endif
-	ioredir(argv, type);
+	IOredir(argv, type);
     }
 
     if ((pid = fork()) == 0) {
@@ -292,7 +292,7 @@ char classify(char *argv[]) {
  *
  *
  *
-**/
+
 void ioredir(char *argv[], char dir) {
     int fd = 1;
     int outfile = 0;
@@ -311,7 +311,7 @@ void ioredir(char *argv[], char dir) {
 	printf("OUTPUT FILE: %s\n", argv[2]);
 #endif
 
-	outfile = open(argv[2], O_WRONLY | O_CREAT | O_CLOEXEC); 
+	outfile = open(argv[2], O_WRONLY | O_CREAT, S_IRWXG | O_CLOEXEC); 
 #ifdef DEBUG
 	Error(NULL); 
 #endif
@@ -346,7 +346,7 @@ void ioredir(char *argv[], char dir) {
 	    printf("fd: %d\n", fd);
 	    printf("OUTPUT FILE: %s\n", argv[4]);
 #endif
-	    outfile = open(argv[4], O_WRONLY | O_CREAT | O_CLOEXEC); 
+	    outfile = open(argv[4], O_WRONLY | O_CREAT, S_IRWXG | O_CLOEXEC); 
 #ifdef DEBUG
 	    Error(NULL);
 #endif
@@ -356,7 +356,72 @@ void ioredir(char *argv[], char dir) {
 		
     }    
 }
+**
+ *
+ *
+ *
+ *
+ *
+ *
+**/
+void IOredir(char *argv[], char dir) {
+    
+    int infile;
+    int outfile;
+    int fd = 1;
+    int i = 0;
+    while (argv[i] != NULL) {
+	for (int j = 0; j < strlen(argv[i]); ++j) {
+	    if (argv[i][j] == '<') {
+		if (argv[i + 1] == NULL) {
+		    Error("ERROR: No input file");
+		    return;
+		}
+#ifdef DEBUG
+		printf("INPUTTING\n");
+		printf("fd: %d\n", fd);
+		printf("INPUT FILE: %s\n", argv[2]);
+#endif
+		infile = open(argv[i + 1], O_RDONLY);
+		dup2(infile, 0);
+		close(infile);
+    
+	    } else if (argv[i][j] == '>') {
+		
+		if (strlen(argv[i]) == 2) {
+		    fd = argv[i][0] - 48;
+		    if (fd < 1 || fd > 2) {
+		        Error("ERROR: Bad file descriptor");
+			return;
+		    }
+		}
 
+		if (argv[i + 1] == NULL) {
+		    Error("ERROR: No output file");
+		    return;
+		}
+#ifdef DEBUG
+		printf("OUTPUTTING\n");
+	        printf("fd: %d\n", fd);
+		printf("OUTPUT FILE: %s\n", argv[i + 1]);
+#endif
+		outfile = open(argv[i + 1], O_RDWR | O_CREAT, 0666 | O_CLOEXEC); 
+#ifdef DEBUG
+		Error(NULL);
+#endif
+		dup2(outfile, fd);
+#ifdef DEBUG
+		Error(NULL);
+#endif
+		close(outfile);  
+#ifdef DEBUG
+		Error(NULL);
+#endif
+	    }
+	}
+	++i;
+    }
+}
 /**
  *
  * reapChild

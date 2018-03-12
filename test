@@ -1,0 +1,24 @@
+
+ls 
+ls -al 
+cat example.txt 
+siesta &
+cd /usr/bin 
+ls 
+cd ../ 
+pwd 
+cd 
+find . -name example.txt  
+wc example.txt
+wc       foo.c
+/usr/bin/ps
+ps
+firefox 
+
+cat example.txt | grep blah 
+cat foo.txt      blah.txt 1>     out.txt 2> out.txt  
+wc out.txt    
+cat < foo.txt 1> out2.txt   
+diff out.txt out2.txt   
+ls -la yeeha.txt 2> errorout.txt   
+exit 
