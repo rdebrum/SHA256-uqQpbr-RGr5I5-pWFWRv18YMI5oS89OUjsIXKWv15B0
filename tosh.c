@@ -20,14 +20,25 @@
 
 #define DEBUG	1
 
+typedef struct cmd {
+    char *cmdline;
+    char *argv[MAXLINE];
+    int bg;
+    char *path;
+    char *cmd1;
+    char *cmd2;
+    char *infile;
+    char *outfile;
+} Command;
+
 // TODO: add your function prototypes here as necessary
-void interp(char *argv[], char* cmdline, int bg);
+void interp(Command *cmd);
 
-char *buildPath(char *argv[], char *build, int bg);
+char *buildPath(Command *cmd);
 
-void Execv(char *path, char *argv[], int bg);
+void Execv(Command *cmd);
 
-void historyCmd(char *argv[], char *cmdline, int bg);
+void historyCmd(Command *cmd);
 
 char classify(char *argv[]);
 
@@ -52,32 +63,32 @@ int main(){
 	while(1) {
 		// (1) read in the next command entered by the user
 		cyan();
-		char *cmdline = readline("tosh$ ");
+		Command cmd;
+		cmd.cmdline = readline("tosh$ ");
 		
 		// NULL indicates EOF was reached, which in this case means someone
 		// probably typed in CTRL-d
-		if (cmdline == NULL) {
+		if (cmd.cmdline == NULL) {
 		    red();
 		    Error("EOF REACHED");
 		    fflush(stdout);
 		    exit(0);
-		} else if (strlen(cmdline) <= 1) { continue; }
+		} else if (strlen(cmd.cmdline) <= 1) { continue; }
 		
 		// TODO: complete the following top-level steps
 		// (2) parse the cmdline
-		char *argv[MAXARGS];
-
-		int bg = parseArguments(cmdline, argv);
+		
+		cmd.bg = parseArguments(cmd.cmdline, cmd.argv);
 		int i = 0;
 #ifdef DEBUG
-		printf("BACKGROUND = %d\n", bg);
-		while (argv[i] != NULL) {
-		    printf("%d: #%s#\n", i + 1, argv[i]);
+		printf("BACKGROUND = %d\n", cmd.bg);
+		while (cmd.argv[i] != NULL) {
+		    printf("%d: #%s#\n", i + 1, cmd.argv[i]);
 		    i++;
 		}
 #endif		
-		if (bg) { bg = WNOHANG; }
-		interp(argv, cmdline, bg);
+		if (cmd.bg) { cmd.bg = WNOHANG; }
+		interp(&cmd);
 		// (3) determine how to execute it, and then execute it
 	}
 	return 0;
@@ -105,28 +116,27 @@ void Error(char *err) {
  * @param cmdline: the original command entry
  * @param bg: 0 for foreground, 1 for background execution
  **/
-void interp(char *argv[], char *cmdline, int bg) {
-    char *build = NULL;
+void interp(Command *cmd) {
     magenta();
-    if (!strcmp(argv[0], "history")) {
-	addEntry(cmdline);
+    if (!strcmp(cmd->argv[0], "history")) {
+	addEntry(cmd->cmdline);
 	printHistory();
-    } else if (!strcmp(argv[0], "exit")) {
+    } else if (!strcmp(cmd->argv[0], "exit")) {
 	printf("Bye\n");
 	exit(0);
-    } else if (argv[0][0] == '!') { 
-	 historyCmd(argv, cmdline, bg); 
-    } else if (!strcmp(argv[0], "cd")) {
-	addEntry(cmdline);
-	if (argv[1] == NULL) { chdir(getenv("HOME")); }
-	else { chdir(argv[1]); }
+    } else if (cmd->argv[0][0] == '!') { 
+	 historyCmd(cmd); 
+    } else if (!strcmp(cmd->argv[0], "cd")) {
+	addEntry(cmd->cmdline);
+	if (cmd->argv[1] == NULL) { chdir(getenv("HOME")); }
+	else { chdir(cmd->argv[1]); }
     } else { 
-	addEntry(cmdline);
-	build = buildPath(argv, build, bg);
-	Execv(build, argv, bg);
+	addEntry(cmd->cmdline);
+	cmd->path = buildPath(cmd);
+	Execv(cmd);
+	free(cmd->path);
 	
     }
-    free(build);
 }
 
 /**
@@ -138,45 +148,45 @@ void interp(char *argv[], char *cmdline, int bg) {
  *
  *
 **/
-char *buildPath(char *argv[], char *build, int bg) {
+char *buildPath(Command *cmd) {
 
     char *path = getenv("PATH");
     char *attempt = strdup(path);
     char *temp = strtok(attempt, ":");
     
-    build = strdup(path);
+    cmd->path = strdup(path);
     
 #ifdef DEBUG
     printf("env:\t%s\n", getenv("PATH"));
 #endif
 
     while (temp != NULL) {
-	strcpy(build, temp);
-	strcat(build, "/");
-	strcat(build, argv[0]);
-	if (!access(build, X_OK)) { break; }
+	strcpy(cmd->path, temp);
+	strcat(cmd->path, "/");
+	strcat(cmd->path, cmd->argv[0]);
+	if (!access(cmd->path, X_OK)) { break; }
 	
 	temp = strtok(NULL, ":");
 
 #ifdef DEBUG
-	printf("temp: %s : %d\n", build, access(build, X_OK));
+	printf("temp: %s : %d\n", cmd->path, access(cmd->path, X_OK));
 #endif
 	
 	if (temp == NULL) {
-	    build = NULL;
-	    build = getcwd(build, sizeof(build));
+	    cmd->path = NULL;
+	    cmd->path = getcwd(cmd->path, sizeof(cmd->path));
 #ifdef DEBUG
-	    printf("CWD = %s\n", build); 
+	    printf("CWD = %s\n", cmd->path); 
 #endif
-	    strcat(build, "/");
-	    strcat(build, argv[0]);
+	    strcat(cmd->path, "/");
+	    strcat(cmd->path, cmd->argv[0]);
 	}
     }
 #ifdef DEBUG
-    printf("build: %s\n", build);
+    printf("build: %s\n", cmd->path);
 #endif
     free(attempt);
-    return build;
+    return cmd->path;
 }
 
 /**
@@ -187,33 +197,30 @@ char *buildPath(char *argv[], char *build, int bg) {
  *
  *
 **/
-void Execv(char *path, char *argv[], int bg) {
+void Execv(Command *cmd) {
     pid_t pid;
     char type;
     int saved_stdout = dup(1); 
 
 #ifdef DEBUG
-    printf("PATH: %s\n", path);
+    printf("PATH: %s\n", cmd->path);
 #endif
 
-    type = classify(argv);
+    type = classify(cmd->argv);
     if (type == '|') { printf("PIPE\n"); }
-    else if (type == '<' || type == '>') {
 #ifdef DEBUG
-	printf("IOREDIR\n");
 #endif
-	IOredir(argv, type);
-    }
+    IOredir(cmd->argv, type);
 
     if ((pid = fork()) == 0) {
 	pid = getpid();
 
-	execv(path, argv);
+	execv(cmd->path, cmd->argv);
 
 	Error("ERROR: Command not found");
 	exit(0);
     } else { 
-	waitpid(pid, NULL, bg);
+	waitpid(pid, NULL, cmd->bg);
 	
 	dup2(saved_stdout, 1);
 	close(saved_stdout);
@@ -229,38 +236,38 @@ void Execv(char *path, char *argv[], int bg) {
  * @param cmdline: a string pointer with the command
  * @param bg: specifies if the command is to be executed in the foreground or background
 **/
-void historyCmd(char *argv[], char *cmdline, int bg) {
-    if (argv[0][1] == '!') {
+void historyCmd(Command *cmd) {
+    if (cmd->argv[0][1] == '!') {
 
 #ifdef DEBUG
 	printf("success\n");
 #endif
 
-        strcpy(cmdline, repeatLast());
+        strcpy(cmd->cmdline, repeatLast());
     
     } else {
 	char idchar[4];
         unsigned idnum = 0;
  
-        for (int i = 1; i < strlen(cmdline); i++) {
-	    idchar[i - 1] = cmdline[i];
+        for (int i = 1; i < strlen(cmd->cmdline); i++) {
+	    idchar[i - 1] = cmd->cmdline[i];
         }
 
 	idnum = strtol(idchar, NULL, 10);
 #ifdef DEBUG
 	printf("CMD NUM TO EXECV: %d\n", idnum);
 #endif
-        strcpy(cmdline, executeID(idnum));
+        strcpy(cmd->cmdline, executeID(idnum));
     }
-    if (cmdline == NULL) {
+    if (cmd->cmdline == NULL) {
 	Error("ERROR: invalid command ID");
     } else { 
 #ifdef DEBUG
 	printf("HERE\n");
-	printf("%s\n", cmdline);
+	printf("%s\n", cmd->cmdline);
 #endif	
-	bg = parseArguments(cmdline, argv);
-	interp(argv, cmdline, bg);
+	cmd->bg = parseArguments(cmd->cmdline, cmd->argv);
+	interp(cmd);
     }
 }
 
@@ -271,15 +278,18 @@ void historyCmd(char *argv[], char *cmdline, int bg) {
  *
  **/
 char classify(char *argv[]) {
-    if (argv[1] == NULL) { return '\0'; }
-    for (int i = 0; i < strlen(argv[1]); ++i) {	
-	if (argv[1][i] == '|') {
-	    return '|';
-	} else if (argv[1][i] == '>') { 
-	    return '>';
-	} else if (argv[1][i] == '<') {
-	    return '<';
+    int i = 0;
+    while (argv[i] != NULL) {
+	for (int j = 0; j < strlen(argv[i]); ++j) {
+	    if (argv[i][j] == '|') {
+		return '|';
+	    } else if (argv[i][j] == '>') { 
+	        return '>';
+	    } else if (argv[i][j] == '<') {
+		return '<';
+	    }
 	}
+	++i;
     }
     return '\0';
 }
@@ -287,76 +297,6 @@ char classify(char *argv[]) {
 /**
  *
  *
- *
- *
- *
- *
- *
-
-void ioredir(char *argv[], char dir) {
-    int fd = 1;
-    int outfile = 0;
-    int infile = 0;
-
-    if (dir == '>') {
-	fd = argv[1][0] - 48;
-	if (fd < 1 && fd > 2) {
-		Error("ERROR: bad file descriptor");
-		return;
-	}
-
-#ifdef DEBUG
-	printf("OUTPUTTING\n");
-	printf("fd: %d\n", fd);
-	printf("OUTPUT FILE: %s\n", argv[2]);
-#endif
-
-	outfile = open(argv[2], O_WRONLY | O_CREAT, S_IRWXG | O_CLOEXEC); 
-#ifdef DEBUG
-	Error(NULL); 
-#endif
-	dup2(outfile, fd);
-	close(outfile);
-    
-    } else {
-
-#ifdef DEBUG
-	printf("INPUTTING\n");
-	printf("fd: %d\n", fd);
-	printf("INPUT FILE: %s\n", argv[2]);
-#endif
-	infile = open(argv[2], O_RDONLY);
-	dup2(infile, 0);
-	close(infile);
-    
-	if (argv[3] != NULL) {
-	    if (strlen(argv[3]) == 2) {
-		fd = argv[3][0] - 48;
-		if (fd < 1 && fd > 2) {
-		    Error("ERROR: bad file descriptor");
-		    return;
-		}
-	    }
-	    if (argv[4] == NULL) { 
-		Error("ERROR: No output file");
-		return;
-	    }
-#ifdef DEBUG
-	    printf("OUTPUTTING\n");
-	    printf("fd: %d\n", fd);
-	    printf("OUTPUT FILE: %s\n", argv[4]);
-#endif
-	    outfile = open(argv[4], O_WRONLY | O_CREAT, S_IRWXG | O_CLOEXEC); 
-#ifdef DEBUG
-	    Error(NULL);
-#endif
-	    dup2(outfile, fd);
-	    close(outfile);
-	}
-		
-    }    
-}
-**
  *
  *
  *
@@ -375,6 +315,10 @@ void IOredir(char *argv[], char dir) {
 	    if (argv[i][j] == '<') {
 		if (argv[i + 1] == NULL) {
 		    Error("ERROR: No input file");
+		    return;
+		}
+		if (strlen(argv[i]) != 1) {
+		    Error("ERROR: Bad re-direct specification");
 		    return;
 		}
 #ifdef DEBUG
@@ -406,22 +350,37 @@ void IOredir(char *argv[], char dir) {
 		printf("OUTPUT FILE: %s\n", argv[i + 1]);
 #endif
 		outfile = open(argv[i + 1], O_RDWR | O_CREAT, 0666 | O_CLOEXEC); 
-#ifdef DEBUG
-		Error(NULL);
-#endif
 		dup2(outfile, fd);
-#ifdef DEBUG
-		Error(NULL);
-#endif
 		close(outfile);  
-#ifdef DEBUG
-		Error(NULL);
-#endif
 	    }
 	}
 	++i;
     }
 }
+/**
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ **
+int Pipe(char *argv[]) {
+    int i = 0;
+
+    while (argv[i] != NULL) {
+	for (int j = 0; j < strlen(argv[i]); ++j) {
+	    if (argv[i][j] == '|') {
+		pipe++;
+		
+	    }
+
+	}
+    }
+}
+*/
+
 /**
  *
  * reapChild
