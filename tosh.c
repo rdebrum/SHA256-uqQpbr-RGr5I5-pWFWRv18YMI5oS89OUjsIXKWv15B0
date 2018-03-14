@@ -21,14 +21,17 @@
 #define DEBUG	1
 
 typedef struct cmd {
-    char *cmdline;
-    char *argv[MAXLINE];
-    int bg;
-    char *path;
-    char *cmd1;
-    char *cmd2;
-    char *infile;
-    char *outfile;
+    char    *cmdline;
+    char    *argv[MAXLINE];
+    int	    bg;
+    char    *path;
+    char    *cmd1;
+    char    *cmd2;
+    char    *infile;
+    int	    infd;
+    int	    outfd;
+    int	    fd;
+    char    *outfile;
 } Command;
 
 // TODO: add your function prototypes here as necessary
@@ -42,9 +45,7 @@ void historyCmd(Command *cmd);
 
 char classify(char *argv[]);
 
-void ioredir(char *argv[], char dir);
-
-void IOredir(char *argv[], char dir);
+void IOredir(Command *cmd);
 
 void reapChild();
 
@@ -64,6 +65,14 @@ int main(){
 		// (1) read in the next command entered by the user
 		cyan();
 		Command cmd;
+		cmd.cmdline = NULL;
+		cmd.path    = NULL;
+		cmd.cmd1    = NULL;
+		cmd.cmd2    = NULL;
+		cmd.infile  = NULL;
+		cmd.outfile = NULL;
+		cmd.infd    = 0;
+		cmd.outfd   = 0;
 		cmd.cmdline = readline("tosh$ ");
 		
 		// NULL indicates EOF was reached, which in this case means someone
@@ -210,7 +219,29 @@ void Execv(Command *cmd) {
     if (type == '|') { printf("PIPE\n"); }
 #ifdef DEBUG
 #endif
-    IOredir(cmd->argv, type);
+    IOredir(cmd);
+
+    if (cmd->infile != NULL) {
+#ifdef DEBUG
+	printf("INPUTTING\n");
+	printf("fd: %d\n", cmd->infd);
+	printf("INPUT FILE: %s\n", cmd->infile);
+#endif
+	cmd->infd = open(cmd->infile, O_RDONLY);
+	dup2(cmd->infd, 0);
+	close(cmd->infd);
+    }
+
+    if (cmd->outfile != NULL) {
+#ifdef DEBUG
+	printf("OUTPUTTING\n");
+	printf("fd: %d\n", cmd->fd);
+	printf("OUTPUT FILE: %s\n", cmd->outfile);
+#endif
+	cmd->outfd = open(cmd->outfile, O_RDWR | O_CREAT, 0666 | O_CLOEXEC); 
+	dup2(cmd->outfd, cmd->fd);
+	close(cmd->outfd);  
+    }
 
     if ((pid = fork()) == 0) {
 	pid = getpid();
@@ -304,54 +335,38 @@ char classify(char *argv[]) {
  *
  *
 **/
-void IOredir(char *argv[], char dir) {
+void IOredir(Command *cmd) {
     
-    int infile;
-    int outfile;
-    int fd = 1;
     int i = 0;
-    while (argv[i] != NULL) {
-	for (int j = 0; j < strlen(argv[i]); ++j) {
-	    if (argv[i][j] == '<') {
-		if (argv[i + 1] == NULL) {
+    while (cmd->argv[i] != NULL) {
+	for (int j = 0; j < strlen(cmd->argv[i]); ++j) {
+	    if (cmd->argv[i][j] == '<') {
+		if (cmd->argv[i + 1] == NULL) {
 		    Error("ERROR: No input file");
 		    return;
 		}
-		if (strlen(argv[i]) != 1) {
+		if (strlen(cmd->argv[i]) != 1) {
 		    Error("ERROR: Bad re-direct specification");
 		    return;
 		}
-#ifdef DEBUG
-		printf("INPUTTING\n");
-		printf("fd: %d\n", fd);
-		printf("INPUT FILE: %s\n", argv[2]);
-#endif
-		infile = open(argv[i + 1], O_RDONLY);
-		dup2(infile, 0);
-		close(infile);
-    
-	    } else if (argv[i][j] == '>') {
+		cmd->infile = cmd->argv[i + 1];
+	    
+	    } else if (cmd->argv[i][j] == '>') {
 		
-		if (strlen(argv[i]) == 2) {
-		    fd = argv[i][0] - 48;
-		    if (fd < 1 || fd > 2) {
+		if (strlen(cmd->argv[i]) == 2) {
+		    cmd->fd = cmd->argv[i][0] - 48;
+		    if (cmd->fd < 1 || cmd->fd > 2) {
 		        Error("ERROR: Bad file descriptor");
 			return;
 		    }
 		}
 
-		if (argv[i + 1] == NULL) {
+		if (cmd->argv[i + 1] == NULL) {
 		    Error("ERROR: No output file");
 		    return;
 		}
-#ifdef DEBUG
-		printf("OUTPUTTING\n");
-	        printf("fd: %d\n", fd);
-		printf("OUTPUT FILE: %s\n", argv[i + 1]);
-#endif
-		outfile = open(argv[i + 1], O_RDWR | O_CREAT, 0666 | O_CLOEXEC); 
-		dup2(outfile, fd);
-		close(outfile);  
+
+		cmd->outfile = cmd->argv[i + 1];
 	    }
 	}
 	++i;
