@@ -13,3 +13,12 @@ blah
 !3
 !!
 !!
+foo > foo.out
+foo 2> foo.err
+rm foo.out
+rm foo.err
+
+
+foo 1> foo.out 2> foo.err
+rm foo.out
+rm foo.err

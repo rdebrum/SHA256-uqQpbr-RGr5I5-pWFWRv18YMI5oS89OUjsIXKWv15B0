@@ -23,15 +23,18 @@
 typedef struct cmd {
     char    *cmdline;
     char    *argv[MAXLINE];
-    int	    bg;
     char    *path;
     char    *cmd1;
     char    *cmd2;
     char    *infile;
+    char    *outfile;
+    char    *outfile2;
+    int	    bg;
+    int	    fd;
+    int	    fd2;
     int	    infd;
     int	    outfd;
-    int	    fd;
-    char    *outfile;
+    int	    outfd2;
 } Command;
 
 // TODO: add your function prototypes here as necessary
@@ -42,8 +45,6 @@ char *buildPath(Command *cmd);
 void Execv(Command *cmd);
 
 void historyCmd(Command *cmd);
-
-char classify(char *argv[]);
 
 void IOredir(Command *cmd);
 
@@ -62,17 +63,23 @@ int main(){
 	sigaction(SIGCHLD, &sa, NULL);
 
 	while(1) {
+		
+		Command cmd;
+		cmd.cmdline	= NULL;
+		cmd.path	= NULL;
+		cmd.cmd1	= NULL;
+		cmd.cmd2	= NULL;
+		cmd.infile	= NULL;
+		cmd.outfile	= NULL;
+		cmd.outfile2	= NULL;
+		cmd.fd		= 0;
+		cmd.infd	= 0;
+		cmd.outfd	= 0;
+		cmd.outfd2	= 0;
+		
+		
 		// (1) read in the next command entered by the user
 		cyan();
-		Command cmd;
-		cmd.cmdline = NULL;
-		cmd.path    = NULL;
-		cmd.cmd1    = NULL;
-		cmd.cmd2    = NULL;
-		cmd.infile  = NULL;
-		cmd.outfile = NULL;
-		cmd.infd    = 0;
-		cmd.outfd   = 0;
 		cmd.cmdline = readline("tosh$ ");
 		
 		// NULL indicates EOF was reached, which in this case means someone
@@ -208,17 +215,13 @@ char *buildPath(Command *cmd) {
 **/
 void Execv(Command *cmd) {
     pid_t pid;
-    char type;
     int saved_stdout = dup(1); 
+    int saved_stderr = dup(2); 
 
 #ifdef DEBUG
     printf("PATH: %s\n", cmd->path);
 #endif
 
-    type = classify(cmd->argv);
-    if (type == '|') { printf("PIPE\n"); }
-#ifdef DEBUG
-#endif
     IOredir(cmd);
 
     if (cmd->infile != NULL) {
@@ -240,7 +243,19 @@ void Execv(Command *cmd) {
 #endif
 	cmd->outfd = open(cmd->outfile, O_RDWR | O_CREAT, 0666 | O_CLOEXEC); 
 	dup2(cmd->outfd, cmd->fd);
-	close(cmd->outfd);  
+	close(cmd->outfd);
+
+	if (cmd->outfile2 != NULL) {
+#ifdef DEBUG
+	    printf("OUTPUTTING\n");
+	    printf("fd: %d\n", cmd->fd2);
+	    printf("OUTPUT FILE: %s\n", cmd->outfile2);
+#endif
+	    cmd->outfd2 = open(cmd->outfile2, O_RDWR | O_CREAT, 0666 | O_CLOEXEC); 
+	    dup2(cmd->outfd2, cmd->fd2);
+	    close(cmd->outfd2);
+	}
+
     }
 
     if ((pid = fork()) == 0) {
@@ -255,6 +270,8 @@ void Execv(Command *cmd) {
 	
 	dup2(saved_stdout, 1);
 	close(saved_stdout);
+	dup2(saved_stderr, 2);
+	close(saved_stderr);
 
     }
 }
@@ -307,29 +324,6 @@ void historyCmd(Command *cmd) {
  *
  *
  *
- **/
-char classify(char *argv[]) {
-    int i = 0;
-    while (argv[i] != NULL) {
-	for (int j = 0; j < strlen(argv[i]); ++j) {
-	    if (argv[i][j] == '|') {
-		return '|';
-	    } else if (argv[i][j] == '>') { 
-	        return '>';
-	    } else if (argv[i][j] == '<') {
-		return '<';
-	    }
-	}
-	++i;
-    }
-    return '\0';
-}
-
-/**
- *
- *
- *
- *
  *
  *
  *
@@ -354,19 +348,38 @@ void IOredir(Command *cmd) {
 	    } else if (cmd->argv[i][j] == '>') {
 		
 		if (strlen(cmd->argv[i]) == 2) {
-		    cmd->fd = cmd->argv[i][0] - 48;
-		    if (cmd->fd < 1 || cmd->fd > 2) {
-		        Error("ERROR: Bad file descriptor");
-			return;
+		    if (cmd->fd == 0) {
+#ifdef DEBUG
+			printf("fd\n");
+#endif
+			cmd->fd = cmd->argv[i][0] - 48;
+			/* ERROR CHECKING */
+			if (cmd->fd < 1 || cmd->fd > 2) {
+		            Error("ERROR: Bad file descriptor");
+			    return;
+			}
+		    } else {
+#ifdef DEBUG
+			printf("fd2\n");
+#endif
+			cmd->fd2 = cmd->argv[i][0] - 48;
+			/* ERROR CHECKING */
+			if (cmd->fd2 < 1 || cmd->fd2 > 2) {
+			    Error("ERROR: Bad file descriptor");
+			    return;
+			}
 		    }
 		}
-
+		
 		if (cmd->argv[i + 1] == NULL) {
 		    Error("ERROR: No output file");
 		    return;
 		}
-
-		cmd->outfile = cmd->argv[i + 1];
+		if (cmd->outfile == NULL) {
+		    cmd->outfile = cmd->argv[i + 1];
+		} else {
+		    cmd->outfile2 = cmd->argv[i + 1];
+		}
 	    }
 	}
 	++i;
