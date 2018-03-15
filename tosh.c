@@ -48,6 +48,8 @@ void historyCmd(Command *cmd);
 
 void IOredir(Command *cmd);
 
+int Pipe(char *argv[]);
+
 void reapChild();
 
 void Error(char *err);
@@ -113,11 +115,11 @@ int main(){
 void Error(char *err) {
     if (err != NULL) {
         red();
-	printf("%s\n", err);
+	fprintf(stderr, "%s\n", err);
         magenta();
     } else {
 	red();
-	printf("ERRNO %d: %s\n", errno, strerror(errno));
+	fprintf(stderr, "ERRNO %d: %s\n", errno, strerror(errno));
 	magenta();
     }
 }
@@ -393,21 +395,23 @@ void IOredir(Command *cmd) {
  *
  *
  *
- **
+**/
 int Pipe(char *argv[]) {
     int i = 0;
-
+    int pipefd[2];
     while (argv[i] != NULL) {
 	for (int j = 0; j < strlen(argv[i]); ++j) {
 	    if (argv[i][j] == '|') {
-		pipe++;
+		pipe(pipefd);
+		cmd->cmd1 = cmd->argv[0];
+		cmd->cmd2 = cmd->argv[i + 1];
 		
 	    }
 
 	}
     }
 }
-*/
+
 
 /**
  *
