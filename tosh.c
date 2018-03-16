@@ -275,28 +275,38 @@ void Execv(Command *cmd) {
 	pid = getpid();
 	
 	if (cmd->pipe != NULL) {
+	    pipe(cmd->pipefd);
 	    dup2(cmd->pipefd[0], 0);
 	    close(cmd->pipefd[1]);
-	    execv(buildPath(cmd->pipe), cmd->pipe->argv);
+#ifdef DEBUG
+	    printf("I AM EXECUTING GREP\n");
+#endif
+	    execv(cmd->pipe->path, cmd->pipe->argv);
 	} else {
+#ifdef DEBUG
+	    printf("I AM EXECUTING NORMALLY\n");
+#endif
 	    execv(cmd->path, cmd->argv);
 	}
 
 	Error("ERROR: Command not found");
 	exit(0);
     } else { 
-	
+	/* PARENT PROCESS */
 	if (cmd->pipe != NULL) {
+	    waitpid(pid, NULL, cmd->bg);
 	    pid = fork();
 	    if (pid == -1) {
 		Error("ERROR: Pipe fork failure");
 		return;
 	    } else if (pid == 0) {
-
+		pid = getpid();
 		dup2(cmd->pipefd[1], 1);
 		close(cmd->pipefd[0]);
-
-		execv(buildPath(cmd), cmd->argv);
+#ifdef DEBUG
+		printf("I AM EXECUTING CAT\n");
+#endif
+		execv(cmd->path, cmd->argv);
 		Error("ERROR: Command not found");
 		exit(0);
 	    }
@@ -434,33 +444,35 @@ void IOredir(Command *cmd) {
 void Pipe(Command *cmd) {
     int i = 0;
     int j = 0;
-    Command *temp = NULL;
-    cmd->pipe = temp;
-    printf("PIPING\n");
-    while (cmd->argv[i] != NULL) {
-	if (cmd->argv[i][0] == '|') {
-	   
-	    cmd->argv[i] = NULL;
-#ifdef DEBUG
-	    Error(NULL);
-#endif
-	    pipe(cmd->pipefd);
-	    
-	    ++i;
-	    while (cmd->argv[i] != NULL) {
-		cmd->pipe->argv[j] = cmd->argv[i];
-#ifdef DEBUG
-		printf("%d: #%s#\n", j, cmd->pipe->argv[j]);
-#endif
-		++i;
-		++j;
-	    }
-	    return;		
-	}
-	++i;
-    }
-}
 
+    while (cmd->argv[i][0] != '|' && strlen(cmd->argv[i]) != 1) {
+	++i;
+	if (cmd->argv[i] == NULL) {
+	    return;
+	}
+    }
+    cmd->pipe = malloc(sizeof(Command));
+    cmdInit(cmd->pipe);
+    cmd->pipe->bg = 0;
+#ifdef DEBUG
+    printf("PIPING\n");
+    printf("i: %d: %s\n", i, cmd->argv[i + 1]);
+#endif
+    cmd->argv[i] = NULL;
+
+    ++i;
+    while (cmd->argv[i] != 0) {
+	cmd->pipe->argv[j] = cmd->argv[i];
+#ifdef DEBUG
+	printf("%s\n", cmd->pipe->argv[j]);
+#endif
+	++i;
+	++j;
+    }
+    cmd->pipe->path = buildPath(cmd->pipe); 
+
+//    exit(0);
+}
 
 /**
  *
