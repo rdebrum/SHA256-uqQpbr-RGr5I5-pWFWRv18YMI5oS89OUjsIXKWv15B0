@@ -66,39 +66,40 @@ int main(){
 	sa.sa_flags = SA_NOCLDSTOP;
 	sigaction(SIGCHLD, &sa, NULL);
 	    
-	Command cmd;
-
+	Command *cmd;
+	cmd = malloc(sizeof(Command));
+	cmd->pipe = malloc(sizeof(Command));	
 	while(1) {
 		
 		// (1) read in the next command entered by the user
 		cyan();
-		cmdInit(&cmd);
+		cmdInit(cmd);
 //		cmdInit(cmd.pipe);
-		cmd.cmdline = readline("tosh$ ");
+		cmd->cmdline = readline("tosh$ ");
 		
 		// NULL indicates EOF was reached, which in this case means someone
 		// probably typed in CTRL-d
-		if (cmd.cmdline == NULL) {
+		if (cmd->cmdline == NULL) {
 		    red();
 		    Error("EOF REACHED");
 		    fflush(stdout);
 		    exit(0);
-		} else if (strlen(cmd.cmdline) <= 1) { continue; }
+		} else if (strlen(cmd->cmdline) <= 1) { continue; }
 		
 		// TODO: complete the following top-level steps
 		// (2) parse the cmdline
 		
-		cmd.bg = parseArguments(cmd.cmdline, cmd.argv);
+		cmd->bg = parseArguments(cmd->cmdline, cmd->argv);
 		int i = 0;
 #ifdef DEBUG
-		printf("BACKGROUND = %d\n", cmd.bg);
-		while (cmd.argv[i] != NULL) {
-		    printf("%d: #%s#\n", i + 1, cmd.argv[i]);
+		printf("BACKGROUND = %d\n", cmd->bg);
+		while (cmd->argv[i] != NULL) {
+		    printf("%d: #%s#\n", i + 1, cmd->argv[i]);
 		    i++;
 		}
 #endif		
-		if (cmd.bg) { cmd.bg = WNOHANG; }
-		interp(&cmd);
+		if (cmd->bg) { cmd->bg = WNOHANG; }
+		interp(cmd);
 		// (3) determine how to execute it, and then execute it
 	}
 	return 0;
@@ -115,14 +116,15 @@ void Error(char *err) {
 }
 
 void cmdInit(Command *cmd) {	
+	
 	cmd->cmdline	= NULL;
 	cmd->path	= NULL;
 	cmd->infile	= NULL;
 	cmd->outfile	= NULL;
 	cmd->outfile2	= NULL;
 	cmd->bg		= 0;
-	cmd->fd		= 1;
-	cmd->fd2	= 1;
+	cmd->fd		= 0;
+	cmd->fd2	= 0;
 	cmd->infd	= 0;
 	cmd->outfd	= 0;
 	cmd->outfd2	= 0;
@@ -147,6 +149,8 @@ void interp(Command *cmd) {
 	printHistory();
     } else if (!strcmp(cmd->argv[0], "exit")) {
 	printf("Bye\n");
+	free(cmd);
+	free(cmd->pipe);
 	exit(0);
     } else if (cmd->argv[0][0] == '!') { 
 	 historyCmd(cmd); 
@@ -294,7 +298,7 @@ void Execv(Command *cmd) {
     } else { 
 	/* PARENT PROCESS */
 	if (cmd->pipe != NULL) {
-	    waitpid(pid, NULL, cmd->bg);
+//	    waitpid(pid, NULL, cmd->bg);
 	    pid = fork();
 	    if (pid == -1) {
 		Error("ERROR: Pipe fork failure");
