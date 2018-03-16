@@ -68,13 +68,11 @@ int main(){
 	    
 	Command *cmd;
 	cmd = malloc(sizeof(Command));
-	cmd->pipe = malloc(sizeof(Command));	
 	while(1) {
 		
 		// (1) read in the next command entered by the user
 		cyan();
 		cmdInit(cmd);
-//		cmdInit(cmd.pipe);
 		cmd->cmdline = readline("tosh$ ");
 		
 		// NULL indicates EOF was reached, which in this case means someone
@@ -105,6 +103,14 @@ int main(){
 	return 0;
 }
 
+/**
+ *
+ * Error
+ *
+ * Prints stderr error messages in red OR the current errno
+ *
+ * @param err: a string of the error text OR can be NULL (to print errno).
+**/
 void Error(char *err) {
     red();
     if (err != NULL) {
@@ -115,6 +121,14 @@ void Error(char *err) {
     magenta();
 }
 
+/**
+ *
+ * cmdInit
+ *
+ * Set the initial states and values for a given Command struct
+ *
+ * @param cmd: Command struct
+**/
 void cmdInit(Command *cmd) {	
 	
 	cmd->cmdline	= NULL;
@@ -138,9 +152,7 @@ void cmdInit(Command *cmd) {
  *
  * Interpret the command line to be be executed.
  *
- * @param argv: list of command line parameters
- * @param cmdline: the original command entry
- * @param bg: 0 for foreground, 1 for background execution
+ * @param cmd: Command struct
  **/
 void interp(Command *cmd) {
     magenta();
@@ -162,19 +174,16 @@ void interp(Command *cmd) {
 	addEntry(cmd->cmdline);
 	cmd->path = buildPath(cmd);
 	Execv(cmd);
-	free(cmd->path);
-	
     }
 }
 
 /**
  *
+ * buildPath
  *
+ * Calls getenv and access to find the correct path for the desired executable
  *
- *
- *
- *
- *
+ * @param cmd: Command struct
 **/
 char *buildPath(Command *cmd) {
 
@@ -219,11 +228,12 @@ char *buildPath(Command *cmd) {
 
 /**
  *
+ * Execv
+ * 
+ * Calls IOredir and Pipe to set up the input/outputs
+ *	before calling execv
  *
- *
- *
- *
- *
+ * @param cmd: Command struct
 **/
 void Execv(Command *cmd) {
     pid_t pid;
@@ -271,15 +281,16 @@ void Execv(Command *cmd) {
 
     }
     
+    pipe(cmd->pipefd);
     pid = fork();
     if (pid == -1) {
 	Error("ERROR: Fork failure");
 	return;
     } else if (pid == 0) {
+	/* CHILD PROCESS */
 	pid = getpid();
 	
 	if (cmd->pipe != NULL) {
-	    pipe(cmd->pipefd);
 	    dup2(cmd->pipefd[0], 0);
 	    close(cmd->pipefd[1]);
 #ifdef DEBUG
@@ -298,7 +309,6 @@ void Execv(Command *cmd) {
     } else { 
 	/* PARENT PROCESS */
 	if (cmd->pipe != NULL) {
-//	    waitpid(pid, NULL, cmd->bg);
 	    pid = fork();
 	    if (pid == -1) {
 		Error("ERROR: Pipe fork failure");
@@ -315,9 +325,9 @@ void Execv(Command *cmd) {
 		exit(0);
 	    }
 	}
-
+	
 	waitpid(pid, NULL, cmd->bg);
-
+	
 	dup2(saved_stdout, 1);
 	close(saved_stdout);
 	dup2(saved_stderr, 2);
@@ -330,9 +340,10 @@ void Execv(Command *cmd) {
  *
  * historyCmd
  *
- * @param argv: a list of command line arguments
- * @param cmdline: a string pointer with the command
- * @param bg: specifies if the command is to be executed in the foreground or background
+ * Calls on functions in tosh_q.c to execute either the last command
+ *	or a specified command.
+ *
+ * @param cmd: Command struct
 **/
 void historyCmd(Command *cmd) {
     if (cmd->argv[0][1] == '!') {
@@ -365,19 +376,19 @@ void historyCmd(Command *cmd) {
 	printf("%s\n", cmd->cmdline);
 #endif	
 	cmd->bg = parseArguments(cmd->cmdline, cmd->argv);
+	if (cmd->bg) { cmd->bg = WNOHANG; }
 	interp(cmd);
     }
 }
 
 /**
  *
+ * IOredir
  *
+ * Sets up the input and output file names and file descriptors 
+ *	for Execv to use when executing
  *
- *
- *
- *
- *
- *
+ * @param cmd: Command struct
 **/
 void IOredir(Command *cmd) {
     
@@ -438,17 +449,16 @@ void IOredir(Command *cmd) {
 
 /**
  *
+ * Pipe
  *
+ * Sets up the pipe struct and commands for Execv to execute
  *
- *
- *
- *
- *
+ * @param cmd: Command struct
 **/
 void Pipe(Command *cmd) {
     int i = 0;
     int j = 0;
-
+    
     while (cmd->argv[i][0] != '|' && strlen(cmd->argv[i]) != 1) {
 	++i;
 	if (cmd->argv[i] == NULL) {
@@ -456,7 +466,6 @@ void Pipe(Command *cmd) {
 	}
     }
     cmd->pipe = malloc(sizeof(Command));
-    cmdInit(cmd->pipe);
     cmd->pipe->bg = 0;
 #ifdef DEBUG
     printf("PIPING\n");
@@ -474,8 +483,6 @@ void Pipe(Command *cmd) {
 	++j;
     }
     cmd->pipe->path = buildPath(cmd->pipe); 
-
-//    exit(0);
 }
 
 /**
