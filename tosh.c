@@ -21,20 +21,20 @@
 #define DEBUG	1
 
 typedef struct cmd {
-    char    *cmdline;
-    char    *argv[MAXLINE];
-    char    *path;
-    char    *cmd1;
-    char    *cmd2;
-    char    *infile;
-    char    *outfile;
-    char    *outfile2;
-    int	    bg;
-    int	    fd;
-    int	    fd2;
-    int	    infd;
-    int	    outfd;
-    int	    outfd2;
+    char	*cmdline;
+    char	*argv[MAXARGS];
+    char	*path;
+    char	*infile;
+    char	*outfile;
+    char	*outfile2;
+    int		bg;
+    int		fd;
+    int	        fd2;
+    int		infd;
+    int		outfd;
+    int	        outfd2;
+    int		pipefd[2];
+    struct cmd	*pipe;
 } Command;
 
 // TODO: add your function prototypes here as necessary
@@ -48,11 +48,13 @@ void historyCmd(Command *cmd);
 
 void IOredir(Command *cmd);
 
-int Pipe(char *argv[]);
+void Pipe(Command *cmd);
 
 void reapChild();
 
 void Error(char *err);
+
+void cmdInit(Command *cmd);
 
 int main(){ 
 
@@ -63,25 +65,15 @@ int main(){
 	sa.sa_handler = reapChild;
 	sa.sa_flags = SA_NOCLDSTOP;
 	sigaction(SIGCHLD, &sa, NULL);
+	    
+	Command cmd;
 
 	while(1) {
 		
-		Command cmd;
-		cmd.cmdline	= NULL;
-		cmd.path	= NULL;
-		cmd.cmd1	= NULL;
-		cmd.cmd2	= NULL;
-		cmd.infile	= NULL;
-		cmd.outfile	= NULL;
-		cmd.outfile2	= NULL;
-		cmd.fd		= 0;
-		cmd.infd	= 0;
-		cmd.outfd	= 0;
-		cmd.outfd2	= 0;
-		
-		
 		// (1) read in the next command entered by the user
 		cyan();
+		cmdInit(&cmd);
+//		cmdInit(cmd.pipe);
 		cmd.cmdline = readline("tosh$ ");
 		
 		// NULL indicates EOF was reached, which in this case means someone
@@ -113,16 +105,30 @@ int main(){
 }
 
 void Error(char *err) {
+    red();
     if (err != NULL) {
-        red();
 	fprintf(stderr, "%s\n", err);
-        magenta();
     } else {
-	red();
 	fprintf(stderr, "ERRNO %d: %s\n", errno, strerror(errno));
-	magenta();
     }
+    magenta();
 }
+
+void cmdInit(Command *cmd) {	
+	cmd->cmdline	= NULL;
+	cmd->path	= NULL;
+	cmd->infile	= NULL;
+	cmd->outfile	= NULL;
+	cmd->outfile2	= NULL;
+	cmd->bg		= 0;
+	cmd->fd		= 1;
+	cmd->fd2	= 1;
+	cmd->infd	= 0;
+	cmd->outfd	= 0;
+	cmd->outfd2	= 0;
+	cmd->pipe	= NULL;
+}	
+
 
 /**
  *
@@ -225,6 +231,7 @@ void Execv(Command *cmd) {
 #endif
 
     IOredir(cmd);
+    Pipe(cmd);
 
     if (cmd->infile != NULL) {
 #ifdef DEBUG
@@ -259,17 +266,44 @@ void Execv(Command *cmd) {
 	}
 
     }
-
-    if ((pid = fork()) == 0) {
+    
+    pid = fork();
+    if (pid == -1) {
+	Error("ERROR: Fork failure");
+	return;
+    } else if (pid == 0) {
 	pid = getpid();
-
-	execv(cmd->path, cmd->argv);
+	
+	if (cmd->pipe != NULL) {
+	    dup2(cmd->pipefd[0], 0);
+	    close(cmd->pipefd[1]);
+	    execv(buildPath(cmd->pipe), cmd->pipe->argv);
+	} else {
+	    execv(cmd->path, cmd->argv);
+	}
 
 	Error("ERROR: Command not found");
 	exit(0);
     } else { 
-	waitpid(pid, NULL, cmd->bg);
 	
+	if (cmd->pipe != NULL) {
+	    pid = fork();
+	    if (pid == -1) {
+		Error("ERROR: Pipe fork failure");
+		return;
+	    } else if (pid == 0) {
+
+		dup2(cmd->pipefd[1], 1);
+		close(cmd->pipefd[0]);
+
+		execv(buildPath(cmd), cmd->argv);
+		Error("ERROR: Command not found");
+		exit(0);
+	    }
+	}
+
+	waitpid(pid, NULL, cmd->bg);
+
 	dup2(saved_stdout, 1);
 	close(saved_stdout);
 	dup2(saved_stderr, 2);
@@ -387,6 +421,7 @@ void IOredir(Command *cmd) {
 	++i;
     }
 }
+
 /**
  *
  *
@@ -396,19 +431,33 @@ void IOredir(Command *cmd) {
  *
  *
 **/
-int Pipe(char *argv[]) {
+void Pipe(Command *cmd) {
     int i = 0;
-    int pipefd[2];
-    while (argv[i] != NULL) {
-	for (int j = 0; j < strlen(argv[i]); ++j) {
-	    if (argv[i][j] == '|') {
-		pipe(pipefd);
-		cmd->cmd1 = cmd->argv[0];
-		cmd->cmd2 = cmd->argv[i + 1];
-		
+    int j = 0;
+    Command *temp = NULL;
+    cmd->pipe = temp;
+    printf("PIPING\n");
+    while (cmd->argv[i] != NULL) {
+	if (cmd->argv[i][0] == '|') {
+	   
+	    cmd->argv[i] = NULL;
+#ifdef DEBUG
+	    Error(NULL);
+#endif
+	    pipe(cmd->pipefd);
+	    
+	    ++i;
+	    while (cmd->argv[i] != NULL) {
+		cmd->pipe->argv[j] = cmd->argv[i];
+#ifdef DEBUG
+		printf("%d: #%s#\n", j, cmd->pipe->argv[j]);
+#endif
+		++i;
+		++j;
 	    }
-
+	    return;		
 	}
+	++i;
     }
 }
 
