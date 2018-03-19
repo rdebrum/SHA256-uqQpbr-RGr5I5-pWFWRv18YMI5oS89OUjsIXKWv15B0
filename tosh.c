@@ -1,7 +1,13 @@
 /*
  * The Torero Shell (TOSH)
+ * 
+ * A Shell program with piping and IO redirect cpabilities
  *
- * Add your top-level comments here.
+ * Authors:
+ *	Nathan Kramer 
+ *	Robert de Brum
+ *
+ * Written for USD COMP 310 Class; Project 1
  */
 
 #include <stdlib.h>
@@ -299,8 +305,9 @@ void Execv(Command *cmd) {
 	if (cmd->pipe != NULL) {
 	    /* Change fd's to the write end 
 	       of the pipe and execute */
-	    dup2(cmd->pipefd[0], 0);
 	    close(cmd->pipefd[1]);
+	    dup2(cmd->pipefd[0], 0);
+	    close(cmd->pipefd[0]);
 #ifdef DEBUG
 	    printf("I AM EXECUTING GREP\n");
 #endif
@@ -325,26 +332,23 @@ void Execv(Command *cmd) {
 		return;
 	    /* CHILD 2 PROCESS */
 	    } else if (pid2 == 0) {
+#ifdef DEBUG
+		printf("FORK 2\n");
+		printf("%s\n", cmd->path);
+#endif
 		pid2 = getpid();
 		/* Change fd's to the reading 
 		    end of pipe and execute */
-		dup2(cmd->pipefd[1], 1);
 		close(cmd->pipefd[0]);
-#ifdef DEBUG
-		printf("I AM EXECUTING CAT\n");
-#endif
+		dup2(cmd->pipefd[1], 1);
+		close(cmd->pipefd[1]);
+		Error(NULL);	
 		execv(cmd->path, cmd->argv);
 		/* ERROR CHECKING (should have terminated) */
 		Error("ERROR: Command not found");
 		exit(0);
 	    } else { /* BACK TO PARENT PROCESS */
-		/* Wait for newest child to terminate 
-		    (first one already has) */
 		pid2 = waitpid(pid2, NULL, 0);
-#ifdef DEBUG
-		printf("pid2: %d\n", pid);
-		Error(NULL);
-#endif
 		/* restore stdout/stderr */
 		dup2(saved_stdout, 1);
 		close(saved_stdout);
